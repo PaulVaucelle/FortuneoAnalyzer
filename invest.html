@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portefeuille Fortuneo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#f7f7f5; --surface:#ffffff; --border:#e5e5e3; --text:#1a1a18; --muted:#6b6b68; --hint:#a0a09c;
+  --green:#16a37a; --green-bg:#eaf6f1; --red:#d94f2e; --red-bg:#fdf0ec;
+  --blue:#2e7dd4; --blue-bg:#eaf2fc; --amber:#b36d12; --amber-bg:#fdf3e3;
+  --purple:#7c6fd4; --purple-bg:#f0eefb;
+  --radius:10px; --radius-sm:6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#141413; --surface:#1e1e1c; --border:#2e2e2b; --text:#f0efe9; --muted:#8a8a86; --hint:#555552;
+    --green:#1db887; --green-bg:#0d2b21; --red:#e86040; --red-bg:#2d1610;
+    --blue:#4d96e8; --blue-bg:#0d1f33; --amber:#d4880f; --amber-bg:#2a1e08;
+    --purple:#9b8ff0; --purple-bg:#1a1730;
+  }
+}
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:14px; }
+.app { display:flex; height:100vh; overflow:hidden; }
+.sidebar { width:220px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:1.5rem 0; }
+.sidebar-logo { padding:0 1.25rem 1.5rem; font-size:15px; font-weight:600; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+.nav-group { padding:0 .75rem; flex:1; overflow-y:auto; }
+.nav-label { font-size:10px; font-weight:600; color:var(--hint); letter-spacing:.08em; text-transform:uppercase; padding:.5rem .5rem .25rem; }
+.nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--radius-sm); cursor:pointer; font-size:13.5px; color:var(--muted); user-select:none; transition:background .1s,color .1s; border:none; background:none; width:100%; text-align:left; }
+.nav-item svg { flex-shrink:0; opacity:.7; }
+.nav-item:hover { background:var(--bg); color:var(--text); }
+.nav-item.active { background:var(--bg); color:var(--text); font-weight:500; }
+.nav-item.active svg { opacity:1; }
+.sidebar-footer { padding:.75rem; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:6px; }
+.main { flex:1; overflow-y:auto; padding:2rem 2.5rem; }
+.page { display:none; }
+.page.active { display:block; }
+.page-header { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1.75rem; }
+.page-title { font-size:20px; font-weight:600; letter-spacing:-.02em; }
+.page-sub { font-size:12px; color:var(--muted); }
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:1.75rem; }
+.kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.25rem; }
+.kpi-label { font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:500; letter-spacing:.02em; }
+.kpi-val { font-size:22px; font-weight:600; letter-spacing:-.02em; line-height:1; }
+.kpi-sub { font-size:11px; color:var(--muted); margin-top:5px; }
+.pos { color:var(--green); } .neg { color:var(--red); }
+.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:1.75rem; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; }
+.card-title { font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:1rem; }
+.chart-wrap { position:relative; height:200px; }
+.chart-wrap-lg { position:relative; height:280px; }
+.legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:1rem; }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); }
+.legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+.table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:auto; }
+table { width:100%; border-collapse:collapse; }
+thead tr { border-bottom:1px solid var(--border); }
+th { font-size:11px; font-weight:600; color:var(--muted); padding:10px 14px; text-align:right; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+th:first-child { text-align:left; }
+td { font-size:13px; padding:11px 14px; border-bottom:1px solid var(--border); text-align:right; }
+td:first-child { text-align:left; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover { background:var(--bg); }
+.name-cell { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.isin { font-size:11px; color:var(--hint); font-family:'SF Mono','Fira Code',monospace; }
+.pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:600; letter-spacing:.03em; }
+.pill-pea { background:var(--blue-bg); color:var(--blue); }
+.pill-cto { background:var(--amber-bg); color:var(--amber); }
+.pv-cell { display:flex; align-items:center; gap:7px; justify-content:flex-end; }
+.pv-bar { height:3px; border-radius:2px; min-width:2px; }
+.btn-icon { background:none; border:none; cursor:pointer; color:var(--hint); padding:4px; border-radius:4px; line-height:0; transition:color .1s,background .1s; }
+.btn-icon:hover { color:var(--red); background:var(--red-bg); }
+.fisc-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+.fisc-line { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border); }
+.fisc-line:last-child { border-bottom:none; font-weight:600; padding-top:10px; }
+.fisc-label { color:var(--muted); }
+.fisc-note { font-size:11px; color:var(--hint); margin-top:.75rem; line-height:1.6; }
+.fisc-total { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:8px; }
+.import-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
+.drop-zone { border:1.5px dashed var(--border); border-radius:var(--radius); padding:2.5rem 1.5rem; text-align:center; cursor:pointer; transition:background .12s,border-color .12s; }
+.drop-zone:hover, .drop-zone.over { background:var(--bg); border-color:var(--muted); }
+.drop-zone.done { border-color:var(--green); border-style:solid; }
+.drop-icon { font-size:28px; margin-bottom:.6rem; opacity:.4; }
+.drop-label { font-size:14px; font-weight:500; margin-bottom:4px; }
+.drop-sub { font-size:12px; color:var(--muted); }
+.st-ok { font-size:12px; color:var(--green); margin-top:8px; }
+.st-err { font-size:12px; color:var(--red); margin-top:8px; }
+.section-title { font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:.75rem; margin-top:1.5rem; }
+.section-title:first-child { margin-top:0; }
+.form-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
+.fg { display:flex; flex-direction:column; gap:4px; }
+.fg label { font-size:11px; color:var(--muted); font-weight:500; }
+.fg input, .fg select { padding:7px 10px; font-size:13px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--text); outline:none; transition:border-color .12s; }
+.fg input:focus, .fg select:focus { border-color:var(--blue); }
+.btn { padding:7px 14px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:13px; cursor:pointer; font-weight:500; transition:background .1s; }
+.btn:hover { background:var(--bg); }
+.btn-primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+.btn-primary:hover { opacity:.9; background:var(--blue); }
+.btn-danger { color:var(--red); border-color:var(--red-bg); }
+.btn-danger:hover { background:var(--red-bg); }
+.msg { font-size:12px; min-height:18px; margin-top:4px; }
+.divider { height:1px; background:var(--border); margin:1.75rem 0; }
+.empty { text-align:center; padding:4rem 2rem; color:var(--muted); }
+.empty-icon { font-size:36px; margin-bottom:1rem; opacity:.3; }
+.empty p { font-size:14px; margin-bottom:1rem; }
+
+/* Score de diversification */
+.score-wrap { display:grid; grid-template-columns:180px 1fr; gap:1.5rem; align-items:center; }
+.score-circle-wrap { display:flex; flex-direction:column; align-items:center; gap:.5rem; }
+.score-ring { position:relative; width:120px; height:120px; }
+.score-ring canvas { position:absolute; top:0; left:0; }
+.score-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+.score-num { font-size:28px; font-weight:700; }
+.score-max { font-size:11px; color:var(--muted); }
+.score-label { font-size:12px; font-weight:600; }
+.score-details { display:flex; flex-direction:column; gap:10px; }
+.score-row { display:flex; align-items:center; gap:10px; font-size:12px; }
+.score-row-label { color:var(--muted); width:180px; flex-shrink:0; }
+.score-bar-wrap { flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+.score-bar-fill { height:100%; border-radius:3px; transition:width .4s; }
+.score-row-val { width:36px; text-align:right; font-weight:500; font-size:12px; }
+
+/* Secteurs */
+.sector-etf-list { display:flex; flex-direction:column; gap:1rem; }
+.sector-etf-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; }
+.sector-etf-name { font-size:13px; font-weight:500; margin-bottom:.75rem; }
+.sector-grid { display:flex; flex-wrap:wrap; gap:6px; }
+.sector-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:500; border:1px solid var(--border); background:var(--bg); cursor:pointer; user-select:none; transition:all .1s; }
+.sector-chip.active { border-color:transparent; }
+.sector-chip input[type=checkbox] { display:none; }
+
+/* Snapshot list */
+.snapshot-list { display:flex; flex-direction:column; gap:6px; margin-top:1rem; max-height:200px; overflow-y:auto; }
+.snapshot-item { display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:7px 10px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); }
+.snapshot-item span:first-child { color:var(--muted); }
+.snapshot-item span:last-child { font-weight:500; }
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M5 12l3-4 2.5 3 2-2.5 2.5 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Portefeuille
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Analyse</div>
+    <button class="nav-item active" onclick="go('vue')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Vue globale
+    </button>
+    <button class="nav-item" onclick="go('lignes')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="18" r="1"/></svg>
+      Mes lignes
+    </button>
+    <button class="nav-item" onclick="go('evolution')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Évolution
+    </button>
+    <button class="nav-item" onclick="go('secteurs')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      Secteurs
+    </button>
+    <button class="nav-item" onclick="go('diversification')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      Diversification
+    </button>
+    <button class="nav-item" onclick="go('fiscalite')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      Fiscalité
+    </button>
+    <div class="nav-label" style="margin-top:.75rem">Données</div>
+    <button class="nav-item" onclick="go('import')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Importer CSV
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <button class="btn" style="width:100%;font-size:12px" onclick="exportJSON()">💾 Sauvegarder JSON</button>
+    <button class="btn" style="width:100%;font-size:12px" onclick="document.getElementById('fi-restore').click()">📂 Restaurer JSON</button>
+    <input type="file" id="fi-restore" accept=".json" style="display:none" onchange="importJSON(this)">
+    <button class="btn btn-danger" style="width:100%;font-size:12px" onclick="clearAll()">Effacer les données</button>
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- Vue globale -->
+  <div class="page active" id="page-vue">
+    <div class="page-header">
+      <div class="page-title">Vue globale</div>
+      <div class="page-sub" id="update-date"></div>
+    </div>
+    <div id="empty-vue" class="empty" style="display:none">
+      <div class="empty-icon">📂</div>
+      <p>Importe tes fichiers CSV Fortuneo pour commencer</p>
+      <button class="btn" onclick="go('import')">Importer mes fichiers</button>
+    </div>
+    <div id="vue-inner">
+      <div class="kpi-row" id="kpis"></div>
+      <div class="charts-row">
+        <div class="card">
+          <div class="card-title">PEA vs CTO</div>
+          <div class="chart-wrap"><canvas id="cEnv"></canvas></div>
+          <div class="legend" id="lEnv"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Par ligne</div>
+          <div class="chart-wrap"><canvas id="cEtf"></canvas></div>
+          <div class="legend" id="lEtf"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mes lignes -->
+  <div class="page" id="page-lignes">
+    <div class="page-header"><div class="page-title">Mes lignes</div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:220px">Libellé</th>
+          <th style="width:55px">Env.</th>
+          <th style="width:55px">Qté</th>
+          <th style="width:80px">PRU</th>
+          <th style="width:80px">Cours</th>
+          <th style="width:60px">Var.</th>
+          <th style="width:90px">Valeur</th>
+          <th style="width:110px">+/- value</th>
+          <th style="width:60px">Poids</th>
+          <th style="width:36px"></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Evolution -->
+  <div class="page" id="page-evolution">
+    <div class="page-header">
+      <div class="page-title">Évolution</div>
+      <div class="page-sub" id="evo-sub"></div>
+    </div>
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Valeur totale du portefeuille</div>
+      <div class="chart-wrap-lg"><canvas id="cEvo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Snapshots enregistrés</div>
+      <div id="snapshot-list-wrap">
+        <p style="font-size:12px;color:var(--muted)">Un snapshot est enregistré automatiquement à chaque import CSV.</p>
+        <div class="snapshot-list" id="snapshot-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secteurs -->
+  <div class="page" id="page-secteurs">
+    <div class="page-header">
+      <div class="page-title">Répartition sectorielle</div>
+      <div class="page-sub">Coche les secteurs pour chaque ETF</div>
+    </div>
+    <div class="charts-row" id="secteur-charts" style="display:none">
+      <div class="card">
+        <div class="card-title">Répartition par secteur</div>
+        <div class="chart-wrap"><canvas id="cSecteur"></canvas></div>
+        <div class="legend" id="lSecteur"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Valeur exposée par secteur</div>
+        <div class="chart-wrap"><canvas id="cSecteurBar"></canvas></div>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:0">Attribution par ETF</div>
+    <div class="sector-etf-list" id="sector-etf-list"></div>
+  </div>
+
+  <!-- Diversification -->
+  <div class="page" id="page-diversification">
+    <div class="page-header"><div class="page-title">Score de diversification</div></div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="score-wrap" id="score-wrap"></div>
+    </div>
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Répartition géographique</div>
+        <div class="chart-wrap"><canvas id="cGeo"></canvas></div>
+        <div class="legend" id="lGeo"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Concentration des positions</div>
+        <div class="chart-wrap"><canvas id="cConc"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fiscalite -->
+  <div class="page" id="page-fiscalite">
+    <div class="page-header"><div class="page-title">Fiscalité</div></div>
+    <div id="fisc-inner"></div>
+  </div>
+
+  <!-- Import -->
+  <div class="page" id="page-import">
+    <div class="page-header"><div class="page-title">Importer</div></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem">Depuis Fortuneo : <strong>Mes comptes → Portefeuille → Exporter en CSV</strong>. Un snapshot est pris automatiquement à chaque import.</p>
+    <div class="import-grid">
+      <div>
+        <div class="drop-zone" id="dz-pea" onclick="document.getElementById('fi-pea').click()">
+          <div class="drop-icon">📄</div>
+          <div class="drop-label">Export PEA</div>
+          <div class="drop-sub">Glisse le fichier ici ou clique</div>
+        </div>
+        <div id="st-pea"></div>
+        <input type="file" id="fi-pea" accept=".csv,.xls,.xlsx" style="display:none" onchange="loadFile(this,'PEA')">
+      </div>
+      <div>
+        <div class="drop-zone" id="dz-cto" onclick="document.getElementById('fi-cto').click()">
+          <div class="drop-icon">📄</div>
+          <div class="drop-label">Export CTO</div>
+          <div class="drop-sub">Glisse le fichier ici ou clique</div>
+        </div>
+        <div id="st-cto"></div>
+        <input type="file" id="fi-cto" accept=".csv,.xls,.xlsx" style="display:none" onchange="loadFile(this,'CTO')">
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="section-title">Saisie manuelle</div>
+    <div class="form-row">
+      <div class="fg" style="flex:2;min-width:160px"><label>Libellé</label><input id="mn" placeholder="Amundi MSCI World"></div>
+      <div class="fg"><label>Enveloppe</label><select id="me"><option value="PEA">PEA</option><option value="CTO">CTO</option></select></div>
+      <div class="fg"><label>Qté</label><input id="mq" type="number" min="0" step="0.01" style="width:80px"></div>
+      <div class="fg"><label>PRU (€)</label><input id="mp" type="number" min="0" step="0.01" style="width:90px"></div>
+      <div class="fg"><label>Cours (€)</label><input id="mc" type="number" min="0" step="0.01" style="width:90px"></div>
+      <div class="fg"><label>ISIN</label><input id="mi" placeholder="FR0011…" style="width:130px"></div>
+      <div class="fg" style="justify-content:flex-end"><button class="btn" onclick="addManuel()">Ajouter</button></div>
+    </div>
+    <div class="msg" id="msg-m"></div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ── Palettes ──────────────────────────────────────────────────────────
+const PAL = ['#2e7dd4','#16a37a','#d94f2e','#7c6fd4','#b36d12','#c4537a','#5a8f1e','#0d7a5a','#d94040','#7a7a76','#e8a030','#30a0c0'];
+const SECTOR_DEFS = [
+  { id:'tech',       label:'Tech & Logiciels',      color:'#2e7dd4' },
+  { id:'sante',      label:'Santé',                 color:'#16a37a' },
+  { id:'finance',    label:'Finance',               color:'#b36d12' },
+  { id:'conso',      label:'Consommation',          color:'#7c6fd4' },
+  { id:'industrie',  label:'Industrie',             color:'#5a8f1e' },
+  { id:'energie',    label:'Énergie',               color:'#d94f2e' },
+  { id:'immo',       label:'Immobilier',            color:'#c4537a' },
+  { id:'materiaux',  label:'Matériaux',             color:'#e8a030' },
+  { id:'telecom',    label:'Télécoms',              color:'#30a0c0' },
+  { id:'services',   label:'Services aux coll.',    color:'#0d7a5a' },
+];
+const GEO_DEFS = [
+  { id:'us',    label:'États-Unis',    color:'#2e7dd4' },
+  { id:'eu',    label:'Europe',        color:'#16a37a' },
+  { id:'jp',    label:'Japon',         color:'#d94f2e' },
+  { id:'em',    label:'Marchés émerg.', color:'#b36d12' },
+  { id:'other', label:'Autres',        color:'#7c6fd4' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────
+let rows = [];
+let snapshots = []; // [{date, totalValo, peaValo, ctoValo, pv}]
+let sectorMap = {}; // { isin: {tech:30, sante:20, ...} } (parts en %)
+let geoMap = {};    // { isin: {us:60, eu:20, ...} }
+
+let chEnv=null, chEtf=null, chEvo=null, chSecteur=null, chSecteurBar=null, chGeo=null, chConc=null, chScore=null;
+
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('fortuneo_v5') || '{}');
+    rows      = s.rows      || [];
+    snapshots = s.snapshots || [];
+    sectorMap = s.sectorMap || {};
+    geoMap    = s.geoMap    || {};
+  } catch(e) {}
+}
+function saveState() {
+  try { localStorage.setItem('fortuneo_v5', JSON.stringify({ rows, snapshots, sectorMap, geoMap })); } catch(e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+const fmt  = (n,d=2) => isNaN(n)||n==null ? '—' : n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtE = n => fmt(n) + ' €';
+const pn   = s => parseFloat(String(s||'').replace(/\s/g,'').replace(',','.').replace('%',''));
+
+// ── CSV Parser ────────────────────────────────────────────────────────
+function parseCsv(txt, env) {
+  const lines = txt.split('\n').map(l => l.trim());
+  let hi = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].toLowerCase();
+    if (l.includes('libell') && l.includes('cours')) { hi = i; break; }
+  }
+  if (hi < 0) return { err: 'En-tête introuvable.', data: [] };
+  const norm = s => s.toLowerCase()
+    .replace(/[éèêë]/g,'e').replace(/[àâ]/g,'a').replace(/[îï]/g,'i')
+    .replace(/[ôö]/g,'o').replace(/[ùûü]/g,'u').replace(/ç/g,'c')
+    .replace(/[^a-z0-9/+%]/g,'');
+  const hdrs = lines[hi].split(';').map(h => norm(h.trim()));
+  const ix = k => hdrs.findIndex(h => h.includes(k));
+  const iLib=ix('libell'), iCours=ix('cours'), iQty=ix('qt'), iPru=ix('pru');
+  const iValo=ix('valoris');
+  const iPv  = hdrs.findIndex((h,i) => h.includes('values') && !h.includes('%'));
+  const iPvP = hdrs.findIndex(h => h.includes('values') && h.includes('%'));
+  const iPoids=ix('poids'), iVar=ix('var'), iIsin=ix('isin');
+  const data = [];
+  for (let i = hi+1; i < lines.length; i++) {
+    const c = lines[i].split(';');
+    if (c.length < 4) continue;
+    const lib = (c[iLib]||'').trim();
+    if (!lib || lib.toLowerCase().startsWith('total')) continue;
+    const qty = pn(c[iQty]);
+    if (isNaN(qty) || qty <= 0) continue;
+    data.push({ nom:lib, env, qty, pru:pn(c[iPru]), cours:pn(c[iCours]), varV:pn(c[iVar]),
+      valo:pn(c[iValo]), pv:pn(c[iPv]), pvp:pn(c[iPvP]), poids:pn(c[iPoids]), isin:(c[iIsin]||'').trim() });
+  }
+  return { err: data.length ? null : 'Aucune ligne parsée.', data };
+}
+
+function loadFile(inp, env) {
+  const f = inp.files[0]; if (!f) return;
+  const dz = document.getElementById('dz-'+env.toLowerCase());
+  const st = document.getElementById('st-'+env.toLowerCase());
+  const reader = new FileReader();
+  reader.onload = e => {
+    const { err, data } = parseCsv(e.target.result, env);
+    if (err || !data.length) { st.innerHTML = `<div class="st-err">⚠ ${err||'Aucune donnée'}</div>`; return; }
+    rows = rows.filter(x => x.env !== env);
+    rows.push(...data);
+    takeSnapshot();
+    saveState();
+    const now = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+    document.getElementById('update-date').textContent = 'Mis à jour le ' + now;
+    st.innerHTML = `<div class="st-ok">✓ ${data.length} ligne${data.length>1?'s':''} importée${data.length>1?'s':''} (${env})</div>`;
+    dz.classList.add('done');
+    render();
+  };
+  reader.readAsText(f, 'windows-1252');
+}
+
+['pea','cto'].forEach(env => {
+  const dz = document.getElementById('dz-'+env);
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    const f = e.dataTransfer.files[0]; if (!f) return;
+    const inp = document.getElementById('fi-'+env);
+    const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files;
+    loadFile(inp, env.toUpperCase());
+  });
+});
+
+// ── Snapshots ─────────────────────────────────────────────────────────
+function takeSnapshot() {
+  let tot=0, pv=0, peaV=0, ctoV=0;
+  rows.forEach(r => { tot+=r.valo||0; pv+=r.pv||0; if(r.env==='PEA') peaV+=r.valo||0; else ctoV+=r.valo||0; });
+  const today = new Date().toISOString().slice(0,10);
+  // evite doublons meme jour
+  snapshots = snapshots.filter(s => s.date !== today);
+  snapshots.push({ date:today, tot, pv, peaV, ctoV });
+  snapshots.sort((a,b) => a.date.localeCompare(b.date));
+}
+
+// ── JSON save/restore ─────────────────────────────────────────────────
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ rows, snapshots, sectorMap, geoMap }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'portefeuille_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+function importJSON(inp) {
+  const f = inp.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      rows      = d.rows      || [];
+      snapshots = d.snapshots || [];
+      sectorMap = d.sectorMap || {};
+      geoMap    = d.geoMap    || {};
+      saveState();
+      render();
+      alert('Restauration réussie — ' + rows.length + ' lignes chargées.');
+    } catch(err) { alert('Fichier JSON invalide.'); }
+  };
+  reader.readAsText(f);
+  inp.value = '';
+}
+
+// ── Renderers ─────────────────────────────────────────────────────────
+function renderKpis() {
+  let tot=0, pv=0, peaV=0, ctoV=0;
+  rows.forEach(r => { tot+=r.valo||0; pv+=r.pv||0; if(r.env==='PEA') peaV+=r.valo||0; else ctoV+=r.valo||0; });
+  const pvp = tot-pv > 0 ? pv/(tot-pv)*100 : 0;
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Valeur totale</div><div class="kpi-val">${fmtE(tot)}</div><div class="kpi-sub">${rows.length} ligne${rows.length>1?'s':''}</div></div>
+    <div class="kpi"><div class="kpi-label">Plus-value latente</div><div class="kpi-val ${pv>=0?'pos':'neg'}">${pv>=0?'+':''}${fmtE(pv)}</div><div class="kpi-sub ${pvp>=0?'pos':'neg'}">${pvp>=0?'+':''}${fmt(pvp)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Mise de fonds</div><div class="kpi-val">${fmtE(tot-pv)}</div><div class="kpi-sub">PRU × quantités</div></div>
+    <div class="kpi"><div class="kpi-label">PEA</div><div class="kpi-val">${fmtE(peaV)}</div><div class="kpi-sub">${fmt(tot>0?peaV/tot*100:0,1)}% du total</div></div>
+    <div class="kpi"><div class="kpi-label">CTO</div><div class="kpi-val">${fmtE(ctoV)}</div><div class="kpi-sub">${fmt(tot>0?ctoV/tot*100:0,1)}% du total</div></div>
+  `;
+}
+
+function renderCharts() {
+  const peaV = rows.filter(r=>r.env==='PEA').reduce((s,r)=>s+(r.valo||0),0);
+  const ctoV = rows.filter(r=>r.env==='CTO').reduce((s,r)=>s+(r.valo||0),0);
+  const tot  = (peaV+ctoV)||1;
+  document.getElementById('lEnv').innerHTML = `
+    <span class="legend-item"><span class="legend-dot" style="background:#2e7dd4"></span>PEA — ${fmtE(peaV)} (${fmt(peaV/tot*100,1)}%)</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#b36d12"></span>CTO — ${fmtE(ctoV)} (${fmt(ctoV/tot*100,1)}%)</span>`;
+  if (chEnv) chEnv.destroy();
+  chEnv = new Chart(document.getElementById('cEnv'), { type:'doughnut', data:{ labels:['PEA','CTO'], datasets:[{data:[peaV,ctoV], backgroundColor:['#2e7dd4','#b36d12'], borderWidth:0, hoverOffset:4}] }, options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>' '+fmtE(i.raw)}}}} });
+
+  const vals   = rows.map(r=>r.valo||0);
+  const labels = rows.map(r=>r.nom.length>28?r.nom.slice(0,28)+'…':r.nom);
+  document.getElementById('lEtf').innerHTML = rows.map((r,i)=>`<span class="legend-item"><span class="legend-dot" style="background:${PAL[i%PAL.length]}"></span>${labels[i]} (${fmt((r.valo||0)/tot*100,1)}%)</span>`).join('');
+  if (chEtf) chEtf.destroy();
+  chEtf = new Chart(document.getElementById('cEtf'), { type:'doughnut', data:{ labels, datasets:[{data:vals, backgroundColor:PAL.slice(0,rows.length), borderWidth:0, hoverOffset:4}] }, options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>' '+fmtE(i.raw)}}}} });
+}
+
+function renderTable() {
+  const maxPv = Math.max(...rows.map(r=>Math.abs(r.pv||0)),1);
+  document.getElementById('tbody').innerHTML = rows.length ? rows.map((r,i) => {
+    const pvCls  = r.pv>=0?'pos':'neg';
+    const varCls = (r.varV||0)>=0?'pos':'neg';
+    const pill   = r.env==='PEA'?'pill-pea':'pill-cto';
+    const barW   = Math.round(Math.abs(r.pv||0)/maxPv*60);
+    const barC   = r.pv>=0?'#16a37a':'#d94f2e';
+    return `<tr>
+      <td><div class="name-cell" title="${r.nom}">${r.nom}</div><div class="isin">${r.isin||''}</div></td>
+      <td style="text-align:center"><span class="pill ${pill}">${r.env}</span></td>
+      <td>${fmt(r.qty,r.qty%1===0?0:2)}</td>
+      <td>${fmtE(r.pru)}</td><td>${fmtE(r.cours)}</td>
+      <td class="${varCls}">${(r.varV||0)>=0?'+':''}${fmt(r.varV)}%</td>
+      <td style="font-weight:500">${fmtE(r.valo)}</td>
+      <td><div class="pv-cell"><span class="pv-bar" style="width:${barW}px;background:${barC}"></span><span class="${pvCls}">${r.pv>=0?'+':''}${fmtE(r.pv)}</span></div></td>
+      <td style="color:var(--muted)">${fmt(r.poids,1)}%</td>
+      <td><button class="btn-icon" onclick="delRow(${i})" title="Supprimer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:3rem">Aucune ligne</td></tr>';
+}
+
+function renderEvolution() {
+  if (!snapshots.length) {
+    document.getElementById('evo-sub').textContent = 'Aucun snapshot encore';
+    return;
+  }
+  document.getElementById('evo-sub').textContent = snapshots.length + ' snapshot' + (snapshots.length>1?'s':'') + ' enregistré' + (snapshots.length>1?'s':'');
+  const labels = snapshots.map(s => new Date(s.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'2-digit'}));
+  const totData = snapshots.map(s => s.tot);
+  const peaData = snapshots.map(s => s.peaV);
+  const ctoData = snapshots.map(s => s.ctoV);
+  const pvData  = snapshots.map(s => s.pv);
+  if (chEvo) chEvo.destroy();
+  chEvo = new Chart(document.getElementById('cEvo'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Total', data:totData, borderColor:'#2e7dd4', backgroundColor:'rgba(46,125,212,.08)', fill:true, tension:.35, pointRadius:4, pointHoverRadius:6, borderWidth:2 },
+        { label:'PEA',   data:peaData, borderColor:'#16a37a', backgroundColor:'transparent', tension:.35, pointRadius:3, borderWidth:1.5, borderDash:[4,3] },
+        { label:'CTO',   data:ctoData, borderColor:'#b36d12', backgroundColor:'transparent', tension:.35, pointRadius:3, borderWidth:1.5, borderDash:[4,3] },
+        { label:'+/- val.', data:pvData, borderColor:'#7c6fd4', backgroundColor:'transparent', tension:.35, pointRadius:3, borderWidth:1.5, yAxisID:'yPv' },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'top', labels:{ font:{size:11}, boxWidth:12, padding:16 } }, tooltip:{ callbacks:{ label: ctx => ' ' + ctx.dataset.label + ' : ' + fmtE(ctx.parsed.y) } } },
+      scales: {
+        x: { grid:{ color:'rgba(0,0,0,.05)' }, ticks:{ font:{size:11} } },
+        y: { grid:{ color:'rgba(0,0,0,.05)' }, ticks:{ font:{size:11}, callback: v => fmtE(v) } },
+        yPv: { position:'right', grid:{ display:false }, ticks:{ font:{size:11}, callback: v => fmtE(v) } }
+      }
+    }
+  });
+  // snapshot list
+  const list = [...snapshots].reverse();
+  document.getElementById('snapshot-list').innerHTML = list.map(s => `
+    <div class="snapshot-item">
+      <span>${new Date(s.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</span>
+      <span>${fmtE(s.tot)} <span style="color:${s.pv>=0?'var(--green)':'var(--red)'}; font-size:11px">(${s.pv>=0?'+':''}${fmtE(s.pv)})</span></span>
+    </div>`).join('');
+}
+
+function renderSecteurs() {
+  const hasAny = rows.some(r => sectorMap[r.isin] && Object.values(sectorMap[r.isin]).some(v=>v>0));
+  document.getElementById('secteur-charts').style.display = hasAny ? '' : 'none';
+
+  // Aggreger par secteur (pondéré par valorisation)
+  if (hasAny) {
+    const totValo = rows.reduce((s,r)=>s+(r.valo||0),0) || 1;
+    const agg = {};
+    SECTOR_DEFS.forEach(sd => agg[sd.id] = 0);
+    rows.forEach(r => {
+      const sm = sectorMap[r.isin] || {};
+      const rowPct = (r.valo||0) / totValo;
+      SECTOR_DEFS.forEach(sd => { agg[sd.id] += (sm[sd.id]||0) * rowPct; });
+    });
+    const defs = SECTOR_DEFS.filter(sd => agg[sd.id] > 0.5);
+    const labels = defs.map(sd => sd.label);
+    const vals   = defs.map(sd => agg[sd.id]);
+    const colors = defs.map(sd => sd.color);
+    document.getElementById('lSecteur').innerHTML = defs.map(sd => `<span class="legend-item"><span class="legend-dot" style="background:${sd.color}"></span>${sd.label} ${fmt(agg[sd.id],1)}%</span>`).join('');
+    if (chSecteur) chSecteur.destroy();
+    chSecteur = new Chart(document.getElementById('cSecteur'), { type:'doughnut', data:{ labels, datasets:[{data:vals, backgroundColor:colors, borderWidth:0, hoverOffset:4}] }, options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>' '+fmt(i.raw,1)+'%'}}}} });
+    // bar
+    const barVals = defs.map(sd => agg[sd.id]/100*totValo);
+    if (chSecteurBar) chSecteurBar.destroy();
+    chSecteurBar = new Chart(document.getElementById('cSecteurBar'), {
+      type:'bar',
+      data:{ labels, datasets:[{ data:barVals, backgroundColor:colors, borderRadius:4, borderWidth:0 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:i=>' '+fmtE(i.raw)}} }, scales:{ x:{grid:{display:false},ticks:{font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},callback:v=>fmtE(v)}} } }
+    });
+  }
+
+  // ETF chips
+  const container = document.getElementById('sector-etf-list');
+  container.innerHTML = rows.map(r => {
+    const sm = sectorMap[r.isin] || {};
+    const chips = SECTOR_DEFS.map(sd => {
+      const val = sm[sd.id] || 0;
+      const active = val > 0;
+      const style = active ? `background:${sd.color}22;border-color:${sd.color};color:${sd.color}` : '';
+      return `<label class="sector-chip ${active?'active':''}" style="${style}">
+        <input type="checkbox" ${active?'checked':''} onchange="toggleSector('${r.isin}','${sd.id}',this.checked)">
+        ${sd.label}${active&&val>0&&val<100?' ('+fmt(val,0)+'%)':''}
+      </label>`;
+    }).join('');
+    return `<div class="sector-etf-item">
+      <div class="sector-etf-name">${r.nom} <span style="color:var(--hint);font-size:11px">${r.isin}</span></div>
+      <div class="sector-grid">${chips}</div>
+    </div>`;
+  }).join('') || '<p style="color:var(--muted);font-size:13px">Aucune ligne — importe tes CSV d\'abord.</p>';
+}
+
+function toggleSector(isin, sectorId, checked) {
+  if (!sectorMap[isin]) sectorMap[isin] = {};
+  if (checked) {
+    // repartition uniforme entre secteurs coches
+    sectorMap[isin][sectorId] = 1; // placeholder
+    const active = SECTOR_DEFS.filter(sd => sectorMap[isin][sd.id] > 0);
+    const share = Math.round(100 / active.length);
+    active.forEach((sd,i) => sectorMap[isin][sd.id] = i === active.length-1 ? 100 - share*(active.length-1) : share);
+  } else {
+    sectorMap[isin][sectorId] = 0;
+    const active = SECTOR_DEFS.filter(sd => sectorMap[isin][sd.id] > 0);
+    if (active.length > 0) {
+      const share = Math.round(100 / active.length);
+      active.forEach((sd,i) => sectorMap[isin][sd.id] = i === active.length-1 ? 100 - share*(active.length-1) : share);
+    }
+  }
+  saveState();
+  renderSecteurs();
+}
+
+function renderDiversification() {
+  if (!rows.length) { document.getElementById('score-wrap').innerHTML = '<p style="color:var(--muted);font-size:13px">Aucune donnée.</p>'; return; }
+  const totValo = rows.reduce((s,r)=>s+(r.valo||0),0) || 1;
+  const n = rows.length;
+
+  // Score nb de lignes (max 30 pour 10+ lignes)
+  const scoreLines = Math.min(n/10, 1) * 30;
+
+  // Score concentration HHI (Herfindahl) — max 35
+  const weights = rows.map(r=>(r.valo||0)/totValo);
+  const hhi = weights.reduce((s,w)=>s+w*w,0); // 1=concentre, 1/n=uniforme
+  const hhiScore = (1 - hhi) / (1 - 1/Math.max(n,2)) * 35;
+
+  // Score sectoriel — max 35 : nb secteurs * part equirepartition
+  const agg = {};
+  SECTOR_DEFS.forEach(sd => agg[sd.id] = 0);
+  rows.forEach(r => {
+    const sm = sectorMap[r.isin] || {};
+    const rowPct = (r.valo||0)/totValo;
+    SECTOR_DEFS.forEach(sd => { agg[sd.id] += (sm[sd.id]||0)*rowPct; });
+  });
+  const activeSectors = SECTOR_DEFS.filter(sd => agg[sd.id] > 2);
+  const sectorHhi = activeSectors.length > 0 ? activeSectors.reduce((s,sd)=>s+(agg[sd.id]/100)**2,0) : 1;
+  const sectorScore = activeSectors.length > 0 ? (1-sectorHhi)/(1-1/Math.max(activeSectors.length,2)) * 35 : 0;
+
+  const total = Math.round(scoreLines + hhiScore + sectorScore);
+  const scoreColor = total >= 75 ? '#16a37a' : total >= 50 ? '#b36d12' : '#d94f2e';
+  const scoreLabel = total >= 75 ? 'Bien diversifié' : total >= 50 ? 'Diversification moyenne' : 'Peu diversifié';
+
+  document.getElementById('score-wrap').innerHTML = `
+    <div class="score-circle-wrap">
+      <div class="score-ring">
+        <canvas id="cScoreRing" width="120" height="120"></canvas>
+        <div class="score-center">
+          <div class="score-num" style="color:${scoreColor}">${total}</div>
+          <div class="score-max">/100</div>
+        </div>
+      </div>
+      <div class="score-label" style="color:${scoreColor}">${scoreLabel}</div>
+    </div>
+    <div class="score-details">
+      <div class="score-row">
+        <span class="score-row-label">Nombre de lignes (${n})</span>
+        <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${scoreLines/30*100}%;background:#2e7dd4"></div></div>
+        <span class="score-row-val" style="color:#2e7dd4">${Math.round(scoreLines)}/30</span>
+      </div>
+      <div class="score-row">
+        <span class="score-row-label">Concentration des poids</span>
+        <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${hhiScore/35*100}%;background:#16a37a"></div></div>
+        <span class="score-row-val" style="color:#16a37a">${Math.round(hhiScore)}/35</span>
+      </div>
+      <div class="score-row">
+        <span class="score-row-label">Diversité sectorielle (${activeSectors.length} secteur${activeSectors.length>1?'s':''})</span>
+        <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${sectorScore/35*100}%;background:#7c6fd4"></div></div>
+        <span class="score-row-val" style="color:#7c6fd4">${Math.round(sectorScore)}/35</span>
+      </div>
+      <div style="font-size:11px;color:var(--hint);margin-top:.5rem">Le score sectoriel augmente quand tu renseignes les secteurs dans l'onglet Secteurs.</div>
+    </div>`;
+
+  // ring chart
+  const ctx = document.getElementById('cScoreRing').getContext('2d');
+  if (chScore) chScore.destroy();
+  chScore = new Chart(ctx, { type:'doughnut', data:{ datasets:[{ data:[total,100-total], backgroundColor:[scoreColor,'rgba(0,0,0,.08)'], borderWidth:0 }] }, options:{ cutout:'75%', plugins:{legend:{display:false},tooltip:{enabled:false}}, responsive:false } });
+
+  // Geo chart — basé sur les noms d'ETF (heuristique simple)
+  const geoEst = { us:0, eu:0, jp:0, em:0, other:0 };
+  rows.forEach(r => {
+    const n = r.nom.toLowerCase();
+    const v = r.valo||0;
+    if (n.includes('world') || n.includes('msci world')) { geoEst.us+=v*.65; geoEst.eu+=v*.15; geoEst.jp+=v*.07; geoEst.other+=v*.13; }
+    else if (n.includes('s&p 500') || n.includes('sp500') || n.includes('nasdaq') || n.includes('us ')) { geoEst.us+=v; }
+    else if (n.includes('em') || n.includes('emerging') || n.includes('emerg')) { geoEst.em+=v; }
+    else if (n.includes('europe') || n.includes('euro') || n.includes('stoxx')) { geoEst.eu+=v; }
+    else if (n.includes('japan') || n.includes('japon') || n.includes('nikkei')) { geoEst.jp+=v; }
+    else { geoEst.other+=v; }
+  });
+  const geoTotal = Object.values(geoEst).reduce((s,v)=>s+v,0)||1;
+  const geoDefs  = GEO_DEFS.filter(g => geoEst[g.id]/geoTotal*100 > 1);
+  document.getElementById('lGeo').innerHTML = geoDefs.map(g=>`<span class="legend-item"><span class="legend-dot" style="background:${g.color}"></span>${g.label} ${fmt(geoEst[g.id]/geoTotal*100,1)}%</span>`).join('');
+  if (chGeo) chGeo.destroy();
+  chGeo = new Chart(document.getElementById('cGeo'), { type:'doughnut', data:{ labels:geoDefs.map(g=>g.label), datasets:[{data:geoDefs.map(g=>geoEst[g.id]), backgroundColor:geoDefs.map(g=>g.color), borderWidth:0, hoverOffset:4}] }, options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>' '+fmt(i.parsed/geoTotal*100,1)+'%'}}}} });
+
+  // Concentration chart
+  const sortedRows = [...rows].sort((a,b)=>(b.valo||0)-(a.valo||0));
+  if (chConc) chConc.destroy();
+  chConc = new Chart(document.getElementById('cConc'), {
+    type:'bar',
+    data:{ labels:sortedRows.map(r=>r.nom.length>20?r.nom.slice(0,20)+'…':r.nom), datasets:[{ data:sortedRows.map(r=>r.poids||0), backgroundColor:sortedRows.map((_,i)=>PAL[i%PAL.length]), borderRadius:4, borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:i=>' '+fmt(i.raw,1)+'%'}} }, scales:{ x:{grid:{display:false},ticks:{font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},callback:v=>v+'%'}} } }
+  });
+}
+
+function renderFisc() {
+  const ctoPv = rows.filter(r=>r.env==='CTO').reduce((s,r)=>s+(r.pv||0),0);
+  const peaPv = rows.filter(r=>r.env==='PEA').reduce((s,r)=>s+(r.pv||0),0);
+  const ir=Math.max(0,ctoPv*0.128), ps_cto=Math.max(0,ctoPv*0.172);
+  const flatTax=ir+ps_cto, ps_pea=Math.max(0,peaPv*0.172);
+  document.getElementById('fisc-inner').innerHTML = `
+    <div class="fisc-grid">
+      <div class="card">
+        <div class="card-title">CTO — Flat tax 30%</div>
+        <div class="fisc-line"><span class="fisc-label">Plus-value latente</span><span class="${ctoPv>=0?'pos':'neg'}">${ctoPv>=0?'+':''}${fmtE(ctoPv)}</span></div>
+        <div class="fisc-line"><span class="fisc-label">IR 12.8%</span><span style="color:var(--red)">−${fmtE(ir)}</span></div>
+        <div class="fisc-line"><span class="fisc-label">Prél. sociaux 17.2%</span><span style="color:var(--red)">−${fmtE(ps_cto)}</span></div>
+        <div class="fisc-line"><span>Net après flat tax</span><span class="${ctoPv-flatTax>=0?'pos':'neg'}">${fmtE(ctoPv-flatTax)}</span></div>
+        <div class="fisc-note">Simulation si toutes les positions CTO sont cédées cette année.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">PEA — Régime allégé</div>
+        <div class="fisc-line"><span class="fisc-label">Plus-value latente</span><span class="${peaPv>=0?'pos':'neg'}">${peaPv>=0?'+':''}${fmtE(peaPv)}</span></div>
+        <div class="fisc-line"><span class="fisc-label">IR (PEA &gt; 5 ans)</span><span style="color:var(--green)">Exonéré</span></div>
+        <div class="fisc-line"><span class="fisc-label">Prél. sociaux 17.2%</span><span style="color:var(--red)">−${fmtE(ps_pea)}</span></div>
+        <div class="fisc-line"><span>Net après prél. sociaux</span><span style="font-weight:600">${fmtE(peaPv-ps_pea)}</span></div>
+        <div class="fisc-note">Exonération d'IR pour un PEA ouvert depuis plus de 5 ans.</div>
+      </div>
+    </div>
+    <div class="fisc-total">
+      <div class="fisc-line"><span class="fisc-label">Total PV latentes</span><span class="${ctoPv+peaPv>=0?'pos':'neg'}">${ctoPv+peaPv>=0?'+':''}${fmtE(ctoPv+peaPv)}</span></div>
+      <div class="fisc-line"><span class="fisc-label">Impôts estimés (tout vendu)</span><span style="color:var(--red)">−${fmtE(flatTax+ps_pea)}</span></div>
+      <div class="fisc-line"><span>Net après impôts estimé</span><span style="color:var(--green)">${fmtE(ctoPv+peaPv-flatTax-ps_pea)}</span></div>
+    </div>
+    <p style="font-size:11px;color:var(--hint);margin-top:.5rem">Estimation indicative — consulte un conseiller fiscal pour ta situation personnelle.</p>`;
+}
+
+function addManuel() {
+  const nom=document.getElementById('mn').value.trim();
+  const env=document.getElementById('me').value;
+  const qty=pn(document.getElementById('mq').value);
+  const pru=pn(document.getElementById('mp').value);
+  const cours=pn(document.getElementById('mc').value)||pru;
+  const isin=document.getElementById('mi').value.trim();
+  const msg=document.getElementById('msg-m');
+  if (!nom||isNaN(qty)||qty<=0||isNaN(pru)||pru<=0) { msg.style.color='var(--red)'; msg.textContent='Libellé, quantité et PRU sont requis.'; return; }
+  const valo=qty*cours, pv=qty*(cours-pru), pvp=pru>0?(cours-pru)/pru*100:0;
+  const tot=rows.reduce((s,r)=>s+(r.valo||0),0)+valo;
+  rows.push({ nom, env, qty, pru, cours, varV:0, valo, pv, pvp, poids:tot>0?valo/tot*100:0, isin });
+  ['mn','mq','mp','mc','mi'].forEach(i=>document.getElementById(i).value='');
+  msg.style.color='var(--green)'; msg.textContent='Ligne ajoutée.';
+  setTimeout(()=>msg.textContent='',2000);
+  render();
+}
+
+function delRow(i) { rows.splice(i,1); render(); }
+
+function clearAll() {
+  if (!confirm('Effacer toutes les données ?')) return;
+  rows=[]; snapshots=[]; sectorMap={}; geoMap={};
+  saveState();
+  ['pea','cto'].forEach(e=>{ document.getElementById('st-'+e).innerHTML=''; document.getElementById('dz-'+e).classList.remove('done'); });
+  render();
+}
+
+function render() {
+  const has = rows.length > 0;
+  document.getElementById('empty-vue').style.display = has ? 'none' : 'block';
+  document.getElementById('vue-inner').style.display = has ? 'block' : 'none';
+  if (has) { renderKpis(); renderTable(); renderFisc(); }
+  saveState();
+}
+
+const RENDERERS = { vue:()=>{ if(rows.length){renderCharts();} }, lignes:()=>{}, evolution:renderEvolution, secteurs:renderSecteurs, diversification:renderDiversification, fiscalite:()=>{}, import:()=>{} };
+
+function go(t) {
+  document.querySelectorAll('.nav-item').forEach((b,i)=>b.classList.toggle('active',['vue','lignes','evolution','secteurs','diversification','fiscalite','import'][i]===t));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+t).classList.add('active');
+  setTimeout(()=>{ if(RENDERERS[t]) RENDERERS[t](); }, 30);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+loadState();
+render();
+if (rows.length) setTimeout(()=>{ renderCharts(); }, 100);
+</script>
+</body>
+</html>
